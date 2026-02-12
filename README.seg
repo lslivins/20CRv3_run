@@ -1,0 +1,13 @@
+squeue --me
+sbatch gfsenkf_20crV3_cmip5oz_new_knl_short.csh
+
+setenv corespermpitaskd5 52
+changed to 32
+Error message
+Unable to create step for job 27798964: More processors requested than permitted
+srun -N 0 -n 80 -c 52 --cpu_bind=cores /pscratch/sd/s/segeorge/20CRV3_CoriII_stripe4//bin/gribmeanp.x /pscratch/sd/s/segeorge//gfsenkf_20crV3_cmip5oz_CoriII/ensda_461_1924//1930060100/ 512 256 1930060100 sflx fg 06
+
+
+
+Change back to spec cpu 
+segcpu=32 (half node) 

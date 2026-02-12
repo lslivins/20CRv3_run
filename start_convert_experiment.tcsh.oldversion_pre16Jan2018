@@ -1,0 +1,109 @@
+#!/bin/tcsh
+
+#SBATCH -p regular
+
+#SBATCH -A m958
+#SBATCH -C haswell
+#SBATCH -N 1 
+#SBATCH -t 03:49:14
+#SBATCH -J 1904_cnvgrib2
+#SBATCH -e 1904_cnvgrib.err
+#SBATCH -o 1904_cnvgrib.out
+#SBATCH -L cscratch1
+
+
+set datadir=/global/cscratch1/sd/compo/
+
+# setup the enivorment variables 
+# where the data will be converted
+setenv expname `basename $PWD`
+setenv experiment `echo $expname |cut -c7-9`
+setenv spinyear `echo $expname |cut -c11-114`
+
+setenv datapath "${datadir}/gfsenkf_20crV3_cmip5oz_CoriII/${expname}"
+
+setenv grib2cnvenv "${datapath}/cnvgrib_date.csh"
+source $grib2cnvenv
+
+setenv cnvdate `echo $cnvgrib_date |cut -c1-4`
+setenv month `echo $cnvgrib_date |cut -c5-6`
+
+# need to check that the conversion should run
+# compare the dates of next_archive_date and cnvgrib_date
+
+# next archive time.
+source $datapath/next_quick_archive_date.tcsh
+setenv archive_year `echo $next_quick_archive_date |cut -c1-4`
+setenv archive_month `echo $next_quick_archive_date |cut -c5-6`
+
+if ($archive_year > $cnvdate) then 
+  @ archive_month =  $archive_month + 12
+endif
+
+  @ delta_month = $archive_month - $month
+
+#convert the month before last archive month
+if ( $delta_month >= 2) then
+
+#calculate when the next conversion date should be
+  @ monthp1 = $month + 1
+  if ( $monthp1 > 12 ) then   
+#Its a new year! increase year and start at month 1
+    @ nextyear = $cnvdate + 1
+    @ nextmonth =  $monthp1 - 12
+    setenv nmonth `printf '%02i' ${nextmonth}`
+    setenv next_cnvdate  ${nextyear}${nmonth}
+  else
+   setenv nmonth `printf '%02i' ${monthp1}`
+   setenv next_cnvdate ${cnvdate}${nmonth}
+  endif
+
+echo "Grib convert date is $cnvdate"
+  ls -d $datapath/${cnvdate}${month}0[1234567]* | cut -d/ -f9 > cnv_dirs_${cnvdate}${month}a
+
+  foreach cdate (`cat ./cnv_dirs_${cnvdate}${month}a`)
+
+    /global/u2/c/cmccoll/coriII_home/20CRv3_scripts/utilities/convert_grib2.tcsh ${experiment} ${spinyear} $cdate &
+
+  end
+  wait
+
+  ls -d $datapath/${cnvdate}${month}0[89]* | cut -d/ -f9 > cnv_dirs_${cnvdate}${month}b
+  ls -d $datapath/${cnvdate}${month}1[012345]* | cut -d/ -f9 >> cnv_dirs_${cnvdate}${month}b
+
+  foreach cdate (`cat ./cnv_dirs_${cnvdate}${month}b`)
+
+    /global/u2/c/cmccoll/coriII_home/20CRv3_scripts/utilities/convert_grib2.tcsh ${experiment} ${spinyear} $cdate &
+
+  end
+  wait
+
+  ls -d $datapath/${cnvdate}${month}1[6789]* | cut -d/ -f9 > cnv_dirs_${cnvdate}${month}c
+  ls -d $datapath/${cnvdate}${month}2[0123]* | cut -d/ -f9 >> cnv_dirs_${cnvdate}${month}c
+
+  foreach cdate (`cat ./cnv_dirs_${cnvdate}${month}c`)
+
+    /global/u2/c/cmccoll/coriII_home/20CRv3_scripts/utilities/convert_grib2.tcsh ${experiment} ${spinyear} $cdate &
+
+  end
+  wait
+
+  ls -d $datapath/${cnvdate}${month}2[456789]* | cut -d/ -f9 > cnv_dirs_${cnvdate}${month}d
+  ls -d $datapath/${cnvdate}${month}3[01]* | cut -d/ -f9 >> cnv_dirs_${cnvdate}${month}d
+
+  foreach cdate (`cat ./cnv_dirs_${cnvdate}${month}d`)
+
+    /global/u2/c/cmccoll/coriII_home/20CRv3_scripts/utilities/convert_grib2.tcsh ${experiment} ${spinyear} $cdate &
+
+  end
+  wait
+#cleanup temp files
+# rm cnv_dirs_${cnvdate}${month}a
+# rm cnv_dirs_${cnvdate}${month}b
+# rm cnv_dirs_${cnvdate}${month}c
+# rm cnv_dirs_${cnvdate}${month}d
+echo "setenv cnvgrib_date ${next_cnvdate}" > ${datapath}/cnvgrib_date.csh
+#sbatch start_convert_experiment.tcsh
+endif
+exit 0
+
